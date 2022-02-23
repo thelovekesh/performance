@@ -6,7 +6,6 @@
  *
  * @package performance-lab
  * @since   1.0.0
- * @package performance-lab
  */
 
 /**
@@ -57,11 +56,6 @@ function webp_uploads_create_sources_property( array $metadata, $attachment_id )
 		}
 
 		$current_size = $image_sizes[ $size_name ];
-		$sources      = array();
-		if ( isset( $current_size['sources'] ) && is_array( $current_size['sources'] ) ) {
-			$sources = $current_size['sources'];
-		}
-
 		// Try to find the mime type of the image size.
 		$current_mime = '';
 		if ( isset( $current_size['mime-type'] ) ) {
@@ -77,13 +71,14 @@ function webp_uploads_create_sources_property( array $metadata, $attachment_id )
 
 		$sources          = array();
 		$has_file_changed = true;
-		if ( array_key_exists( 'sources', $current_size ) && is_array( $current_size['sources'] ) ) {
-			$sources = $current_size['sources'];
-			if (
-				! empty( $sources[ $current_mime ]['file'] )
-				&& ! empty( $current_size['file'] )
-				&& $sources[ $current_mime ]['file'] === $current_size['file']
-			) {
+		if ( isset( $current_size['sources'] ) && is_array( $current_size['sources'] ) ) {
+			$sources               = $current_size['sources'];
+			$has_all_required_keys = ! empty( $sources[ $current_mime ]['file'] ) && ! empty( $current_size['file'] );
+			/**
+			 * This conditional, makes sure the fact that an image it was actually updated if was not updated there's no need to schedule
+			 * an additional mime type for this particular image as they are the same.
+			 */
+			if ( $has_all_required_keys && $sources[ $current_mime ]['file'] === $current_size['file'] ) {
 				$has_file_changed = false;
 			}
 		}
