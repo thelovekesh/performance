@@ -19,7 +19,7 @@ class WebP_Uploads_Tests extends WP_UnitTestCase {
 		$expected_mime,
 		$targeted_mime
 	) {
-		$attachment_id = $this->factory->attachment->create_upload_object( $file_location );
+		$attachment_id = $this->import_attachment( $file_location );
 
 		$metadata = wp_get_attachment_metadata( $attachment_id );
 
@@ -46,13 +46,13 @@ class WebP_Uploads_Tests extends WP_UnitTestCase {
 
 	public function provider_image_with_default_behaviors_during_upload() {
 		yield 'JPEG image' => array(
-			TESTS_PLUGIN_DIR . '/tests/testdata/modules/images/leafs.jpg',
+			'leafs.jpg',
 			'image/jpeg',
 			'image/webp',
 		);
 
 		yield 'WebP image' => array(
-			TESTS_PLUGIN_DIR . '/tests/testdata/modules/images/ballons.webp',
+			'balloons.webp',
 			'image/webp',
 			'image/jpeg',
 		);
@@ -66,11 +66,8 @@ class WebP_Uploads_Tests extends WP_UnitTestCase {
 	public function it_should_not_create_the_sources_property_if_no_transform_is_provided() {
 		add_filter( 'webp_uploads_supported_image_mime_transforms', '__return_empty_array' );
 
-		$attachment_id = $this->factory->attachment->create_upload_object(
-			TESTS_PLUGIN_DIR . '/tests/testdata/modules/images/leafs.jpg'
-		);
-
-		$metadata = wp_get_attachment_metadata( $attachment_id );
+		$attachment_id = $this->import_attachment( 'leafs.jpg' );
+		$metadata      = wp_get_attachment_metadata( $attachment_id );
 
 		$this->assertIsArray( $metadata );
 		foreach ( $metadata['sizes'] as $size_name => $properties ) {
@@ -101,11 +98,8 @@ class WebP_Uploads_Tests extends WP_UnitTestCase {
 			}
 		);
 
-		$attachment_id = $this->factory->attachment->create_upload_object(
-			TESTS_PLUGIN_DIR . '/tests/testdata/modules/images/leafs.jpg'
-		);
-
-		$metadata = wp_get_attachment_metadata( $attachment_id );
+		$attachment_id = $this->import_attachment( 'leafs.jpg' );
+		$metadata      = wp_get_attachment_metadata( $attachment_id );
 
 		$this->assertIsArray( $metadata );
 		foreach ( $metadata['sizes'] as $size_name => $properties ) {
@@ -140,11 +134,8 @@ class WebP_Uploads_Tests extends WP_UnitTestCase {
 			}
 		);
 
-		$attachment_id = $this->factory->attachment->create_upload_object(
-			TESTS_PLUGIN_DIR . '/tests/testdata/modules/images/ballons.webp'
-		);
-
-		$metadata = wp_get_attachment_metadata( $attachment_id );
+		$attachment_id = $this->import_attachment( 'balloons.webp' );
+		$metadata      = wp_get_attachment_metadata( $attachment_id );
 
 		$this->assertIsArray( $metadata );
 		foreach ( $metadata['sizes'] as $size_name => $properties ) {
@@ -173,10 +164,10 @@ class WebP_Uploads_Tests extends WP_UnitTestCase {
 		callable $callback,
 		$size
 	) {
-		$attachment_id = $this->factory->attachment->create_upload_object(
-			TESTS_PLUGIN_DIR . '/tests/testdata/modules/images/ballons.webp'
-		);
-		$metadata      = wp_get_attachment_metadata( $attachment_id );
+		$attachment_id = $this->import_attachment( 'balloons.webp' );
+		// Prevent additional resources by removing the need to create additional resources for this image.
+		wp_unschedule_hook( 'webp_uploads_create_image' );
+		$metadata = wp_get_attachment_metadata( $attachment_id );
 		wp_update_attachment_metadata( $attachment_id, $callback( $metadata ) );
 		$result = webp_uploads_generate_image_size( $attachment_id, $size, 'image/webp' );
 
@@ -217,10 +208,10 @@ class WebP_Uploads_Tests extends WP_UnitTestCase {
 	 * @test
 	 */
 	public function it_should_prevent_to_create_an_image_size_when_attached_file_does_not_exists() {
-		$attachment_id = $this->factory->attachment->create_upload_object(
-			TESTS_PLUGIN_DIR . '/tests/testdata/modules/images/leafs.jpg'
-		);
-		$file          = get_attached_file( $attachment_id );
+		$attachment_id = $this->import_attachment( 'leafs.jpg' );
+		// Prevent additional resources by removing the need to create additional resources for this image.
+		wp_unschedule_hook( 'webp_uploads_create_image' );
+		$file = get_attached_file( $attachment_id );
 
 		$this->assertFileExists( $file );
 		wp_delete_file( $file );
@@ -238,10 +229,9 @@ class WebP_Uploads_Tests extends WP_UnitTestCase {
 	 */
 	public function it_should_prevent_to_create_a_subsize_if_the_image_editor_does_not_exists() {
 		// Make sure no editor is available.
-		$attachment_id = $this->factory->attachment->create_upload_object(
-			TESTS_PLUGIN_DIR . '/tests/testdata/modules/images/leafs.jpg'
-		);
-
+		$attachment_id = $this->import_attachment( 'leafs.jpg' );
+		// Prevent additional resources by removing the need to create additional resources for this image.
+		wp_unschedule_hook( 'webp_uploads_create_image' );
 		add_filter( 'wp_image_editors', '__return_empty_array' );
 		$result = webp_uploads_generate_image_size( $attachment_id, 'medium', 'image/webp' );
 		$this->assertTrue( is_wp_error( $result ) );
@@ -255,10 +245,10 @@ class WebP_Uploads_Tests extends WP_UnitTestCase {
 	 */
 	public function it_should_prevent_to_upload_a_mime_that_is_not_supported_by_wordpress() {
 		// Make sure no editor is available.
-		$attachment_id = $this->factory->attachment->create_upload_object(
-			TESTS_PLUGIN_DIR . '/tests/testdata/modules/images/leafs.jpg'
-		);
-		$result        = webp_uploads_generate_image_size( $attachment_id, 'medium', 'image/avif' );
+		$attachment_id = $this->import_attachment( 'leafs.jpg' );
+		// Prevent additional resources by removing the need to create additional resources for this image.
+		wp_unschedule_hook( 'webp_uploads_create_image' );
+		$result = webp_uploads_generate_image_size( $attachment_id, 'medium', 'image/avif' );
 		$this->assertTrue( is_wp_error( $result ) );
 		$this->assertSame( 'image_mime_type_invalid', $result->get_error_code() );
 	}
@@ -270,10 +260,9 @@ class WebP_Uploads_Tests extends WP_UnitTestCase {
 	 */
 	public function it_should_prevent_to_process_an_image_when_the_editor_does_not_support_the_format() {
 		// Make sure no editor is available.
-		$attachment_id = $this->factory->attachment->create_upload_object(
-			TESTS_PLUGIN_DIR . '/tests/testdata/modules/images/leafs.jpg'
-		);
-
+		$attachment_id = $this->import_attachment( 'leafs.jpg' );
+		// Prevent additional resources by removing the need to create additional resources for this image.
+		wp_unschedule_hook( 'webp_uploads_create_image' );
 		add_filter(
 			'wp_image_editors',
 			function () {
@@ -291,11 +280,11 @@ class WebP_Uploads_Tests extends WP_UnitTestCase {
 	 * @test
 	 */
 	public function it_should_create_a_webp_version_with_all_the_required_properties() {
-		$attachment_id = $this->factory->attachment->create_upload_object(
-			TESTS_PLUGIN_DIR . '/tests/testdata/modules/images/leafs.jpg'
-		);
-
+		$attachment_id = $this->import_attachment( 'leafs.jpg' );
+		// Prevent additional resources by removing the need to create additional resources for this image.
+		wp_unschedule_hook( 'webp_uploads_create_image' );
 		$metadata = wp_get_attachment_metadata( $attachment_id );
+
 		$this->assertArrayHasKey( 'sources', $metadata['sizes']['thumbnail'] );
 		$this->assertArrayHasKey( 'image/jpeg', $metadata['sizes']['thumbnail']['sources'] );
 		$this->assertArrayHasKey( 'filesize', $metadata['sizes']['thumbnail']['sources']['image/jpeg'] );
@@ -320,13 +309,13 @@ class WebP_Uploads_Tests extends WP_UnitTestCase {
 	 * @test
 	 */
 	public function it_should_create_the_sources_property_when_the_property_does_not_exists() {
-		$attachment_id = $this->factory->attachment->create_upload_object(
-			TESTS_PLUGIN_DIR . '/tests/testdata/modules/images/leafs.jpg'
-		);
-
+		$attachment_id = $this->import_attachment( 'leafs.jpg' );
+		// Prevent additional resources by removing the need to create additional resources for this image.
+		wp_unschedule_hook( 'webp_uploads_create_image' );
 		$metadata = wp_get_attachment_metadata( $attachment_id );
 		unset( $metadata['sizes']['medium']['sources'] );
-		wp_update_attachment_metadata( $attachment_id, $metadata );
+		// Use `update_post_meta` instead of `wp_update_attachment_metadata` to avoid trigger a hook when the postmeta is updated.
+		update_post_meta( $attachment_id, '_wp_attachment_metadata', $metadata );
 
 		$this->assertArrayNotHasKey( 'sources', $metadata['sizes']['medium'] );
 		$this->assertTrue( webp_uploads_generate_image_size( $attachment_id, 'medium', 'image/webp' ) );
@@ -346,10 +335,9 @@ class WebP_Uploads_Tests extends WP_UnitTestCase {
 	 * @test
 	 */
 	public function it_should_create_an_image_with_the_dimensions_from_the_metadata_instead_of_the_dimensions_of_the_sizes() {
-		$attachment_id = $this->factory->attachment->create_upload_object(
-			TESTS_PLUGIN_DIR . '/tests/testdata/modules/images/leafs.jpg'
-		);
-
+		$attachment_id = $this->import_attachment( 'leafs.jpg' );
+		// Prevent additional resources by removing the need to create additional resources for this image.
+		wp_unschedule_hook( 'webp_uploads_create_image' );
 		$metadata                                 = wp_get_attachment_metadata( $attachment_id );
 		$metadata['sizes']['thumbnail']['width']  = 200;
 		$metadata['sizes']['thumbnail']['height'] = 200;
@@ -375,11 +363,11 @@ class WebP_Uploads_Tests extends WP_UnitTestCase {
 			}
 		);
 
-		$attachment_id = $this->factory->attachment->create_upload_object(
-			TESTS_PLUGIN_DIR . '/tests/testdata/modules/images/leafs.jpg'
-		);
-		$this->assertStringEndsWith( '-scaled.jpg', get_attached_file( $attachment_id ) );
+		$attachment_id = $this->import_attachment( 'leafs.jpg' );
+		// Prevent additional resources by removing the need to create additional resources for this image.
+		wp_unschedule_hook( 'webp_uploads_create_image' );
 
+		$this->assertStringEndsWith( '-scaled.jpg', get_attached_file( $attachment_id ) );
 		$this->assertTrue( webp_uploads_generate_image_size( $attachment_id, 'medium', 'image/webp' ) );
 
 		$metadata = wp_get_attachment_metadata( $attachment_id );
@@ -395,10 +383,9 @@ class WebP_Uploads_Tests extends WP_UnitTestCase {
 	 */
 	public function it_should_remove_the_generated_webp_images_when_the_attachment_is_deleted() {
 		// Make sure no editor is available.
-		$attachment_id = $this->factory->attachment->create_upload_object(
-			TESTS_PLUGIN_DIR . '/tests/testdata/modules/images/leafs.jpg'
-		);
-
+		$attachment_id = $this->import_attachment( 'leafs.jpg' );
+		// Prevent additional resources by removing the need to create additional resources for this image.
+		wp_unschedule_hook( 'webp_uploads_create_image' );
 		$file    = get_attached_file( $attachment_id, true );
 		$dirname = pathinfo( $file, PATHINFO_DIRNAME );
 
@@ -435,10 +422,9 @@ class WebP_Uploads_Tests extends WP_UnitTestCase {
 	 */
 	public function it_should_remove_the_attached_webp_version_if_the_attachment_is_force_deleted_but_empty_trash_day_is_not_defined() {
 		// Make sure no editor is available.
-		$attachment_id = $this->factory->attachment->create_upload_object(
-			TESTS_PLUGIN_DIR . '/tests/testdata/modules/images/leafs.jpg'
-		);
-
+		$attachment_id = $this->import_attachment( 'leafs.jpg' );
+		// Prevent additional resources by removing the need to create additional resources for this image.
+		wp_unschedule_hook( 'webp_uploads_create_image' );
 		$file    = get_attached_file( $attachment_id, true );
 		$dirname = pathinfo( $file, PATHINFO_DIRNAME );
 
@@ -467,10 +453,9 @@ class WebP_Uploads_Tests extends WP_UnitTestCase {
 	 */
 	public function it_should_remove_the_webp_version_of_the_image_if_the_image_is_force_deleted_and_empty_trash_days_is_set_to_zero() {
 		// Make sure no editor is available.
-		$attachment_id = $this->factory->attachment->create_upload_object(
-			TESTS_PLUGIN_DIR . '/tests/testdata/modules/images/leafs.jpg'
-		);
-
+		$attachment_id = $this->import_attachment( 'leafs.jpg' );
+		// Prevent additional resources by removing the need to create additional resources for this image.
+		wp_unschedule_hook( 'webp_uploads_create_image' );
 		$file    = get_attached_file( $attachment_id, true );
 		$dirname = pathinfo( $file, PATHINFO_DIRNAME );
 
@@ -492,5 +477,213 @@ class WebP_Uploads_Tests extends WP_UnitTestCase {
 		$this->assertFileDoesNotExist(
 			path_join( $dirname, $metadata['sizes']['thumbnail']['sources']['image/webp']['file'] )
 		);
+	}
+
+	/**
+	 * Update the sources property of all image sizes when an edited is applied to an image
+	 *
+	 * @test
+	 */
+	public function it_should_update_the_sources_property_of_all_image_sizes_when_an_edited_is_applied_to_an_image() {
+		$attachment_id = $this->import_attachment( 'leafs.jpg' );
+		$metadata      = wp_get_attachment_metadata( $attachment_id );
+		// Prevent additional resources by removing the need to create additional resources for this image.
+		wp_unschedule_hook( 'webp_uploads_create_image' );
+
+		foreach ( $metadata['sizes'] as $size_name => $properties ) {
+			$this->assertArrayHasKey( 'sources', $properties );
+			$this->assertArrayHasKey( 'image/jpeg', $properties['sources'] );
+			$this->assertArrayHasKey( 'file', $properties['sources']['image/jpeg'] );
+			$this->assertSame( $properties['file'], $properties['sources']['image/jpeg']['file'] );
+			$this->assertDoesNotMatchRegularExpression(
+				$this->edited_filename_regex(),
+				$properties['sources']['image/jpeg']['file']
+			);
+		}
+
+		$operation        = ( new WP_Image_Edit( $attachment_id ) )->flip_right()->all()->save();
+		$updated_metadata = wp_get_attachment_metadata( $attachment_id );
+
+		$this->assertSame( 'Image saved', $operation->msg );
+		$this->assertNotSame( $metadata, $updated_metadata );
+
+		foreach ( $updated_metadata['sizes'] as $size_name => $properties ) {
+			$this->assertArrayHasKey( 'sources', $properties );
+			$this->assertArrayHasKey( 'image/jpeg', $properties['sources'] );
+			$this->assertArrayHasKey( 'file', $properties['sources']['image/jpeg'] );
+			$this->assertSame( $properties['file'], $properties['sources']['image/jpeg']['file'] );
+			$this->assertMatchesRegularExpression(
+				$this->edited_filename_regex(),
+				$properties['sources']['image/jpeg']['file']
+			);
+		}
+	}
+
+	/**
+	 * Update only the thumbnail source when the image is edited
+	 *
+	 * @test
+	 */
+	public function it_should_update_only_the_thumbnail_source_when_the_image_is_edited() {
+		$attachment_id = $this->import_attachment( 'leafs.jpg' );
+		$operation     = ( new WP_Image_Edit( $attachment_id ) )->flip_vertical()->only_thumbnail()->save();
+		// Prevent additional resources by removing the need to create additional resources for this image.
+		wp_unschedule_hook( 'webp_uploads_create_image' );
+
+		$metadata = wp_get_attachment_metadata( $attachment_id );
+		$this->assertSame( 'Image saved', $operation->msg );
+
+		foreach ( $metadata['sizes'] as $size_name => $properties ) {
+			$this->assertSame( $properties['sources']['image/jpeg']['file'], $properties['file'] );
+			if ( 'thumbnail' === $size_name ) {
+				$this->assertMatchesRegularExpression(
+					$this->edited_filename_regex(),
+					$properties['sources']['image/jpeg']['file']
+				);
+			} else {
+				$this->assertDoesNotMatchRegularExpression(
+					$this->edited_filename_regex(),
+					$properties['sources']['image/jpeg']['file']
+				);
+			}
+		}
+	}
+
+	/**
+	 * Update all sizes except the thumbnail when the image is edited
+	 *
+	 * @test
+	 */
+	public function it_should_update_all_sizes_except_the_thumbnail_when_the_image_is_edited() {
+		$attachment_id = $this->import_attachment( 'leafs.jpg' );
+		// Prevent additional resources by removing the need to create additional resources for this image.
+		wp_unschedule_hook( 'webp_uploads_create_image' );
+		$operation = ( new WP_Image_Edit( $attachment_id ) )->flip_right()->all_except_thumbnail()->save();
+
+		$metadata = wp_get_attachment_metadata( $attachment_id );
+		$this->assertSame( 'Image saved', $operation->msg );
+
+		foreach ( $metadata['sizes'] as $size_name => $properties ) {
+			$this->assertSame( $properties['sources']['image/jpeg']['file'], $properties['file'] );
+			if ( 'thumbnail' === $size_name ) {
+				$this->assertDoesNotMatchRegularExpression(
+					$this->edited_filename_regex(),
+					$properties['sources']['image/jpeg']['file']
+				);
+			} else {
+				$this->assertMatchesRegularExpression(
+					$this->edited_filename_regex(),
+					$properties['sources']['image/jpeg']['file']
+				);
+			}
+		}
+	}
+
+	/**
+	 * Schedule the generation of a WebP image when all sizes are edited
+	 *
+	 * @test
+	 */
+	public function it_should_schedule_the_generation_of_a_webp_image_when_all_sizes_are_edited() {
+		$attachment_id = $this->import_attachment( 'leafs.jpg' );
+
+		$operation = ( new WP_Image_Edit( $attachment_id ) )->rotate_left()->all()->save();
+		$metadata  = wp_get_attachment_metadata( $attachment_id );
+
+		$this->assertSame( 'Image saved', $operation->msg );
+
+		foreach ( $metadata['sizes'] as $size_name => $properties ) {
+			$this->assertGreaterThan(
+				0,
+				wp_next_scheduled(
+					'webp_uploads_create_image',
+					array(
+						$attachment_id,
+						$size_name,
+						'image/webp',
+					)
+				)
+			);
+		}
+	}
+
+	/**
+	 * Should schedule the generation of a WebP image only to a thumbnail image
+	 *
+	 * @test
+	 */
+	public function it_should_should_schedule_the_generation_of_a_webp_image_only_to_a_thumbnail_image() {
+		$attachment_id = $this->import_attachment( 'car.jpeg' );
+		// Make sure any remaining job is removed to avoid confusion with upcoming tests.
+		wp_unschedule_hook( 'webp_uploads_create_image' );
+		$operation = ( new WP_Image_Edit( $attachment_id ) )->rotate_left()->only_thumbnail()->save();
+		$metadata  = wp_get_attachment_metadata( $attachment_id );
+
+		$this->assertSame( 'Image saved', $operation->msg );
+
+		foreach ( $metadata['sizes'] as $size_name => $properties ) {
+			$scheduled = wp_next_scheduled(
+				'webp_uploads_create_image',
+				array(
+					$attachment_id,
+					$size_name,
+					'image/webp',
+				)
+			);
+			if ( 'thumbnail' === $size_name ) {
+				$this->assertGreaterThan( 0, $scheduled, $size_name );
+			} else {
+				$this->assertFalse( $scheduled, $size_name );
+			}
+		}
+	}
+
+	/**
+	 * Schedule the generation of webp image to all images sizes except the thumbnail
+	 *
+	 * @test
+	 */
+	public function it_should_schedule_the_generation_of_webp_image_to_all_images_sizes_except_the_thumbnail() {
+		$attachment_id = $this->import_attachment( 'car.jpeg' );
+		// Make sure any remaining job is removed to avoid confusion with upcoming tests.
+		wp_unschedule_hook( 'webp_uploads_create_image' );
+
+		$operation = ( new WP_Image_Edit( $attachment_id ) )->rotate_right()->all_except_thumbnail()->save();
+
+		$this->assertSame( 'Image saved', $operation->msg );
+		$metadata = wp_get_attachment_metadata( $attachment_id );
+		foreach ( $metadata['sizes'] as $size_name => $properties ) {
+			$scheduled = wp_next_scheduled(
+				'webp_uploads_create_image',
+				array(
+					$attachment_id,
+					$size_name,
+					'image/webp',
+				)
+			);
+			if ( 'thumbnail' === $size_name ) {
+				$this->assertFalse( $scheduled, $size_name );
+			} else {
+				$this->assertGreaterThan( 0, $scheduled, $size_name );
+			}
+		}
+	}
+
+	/**
+	 * Create an upload an attachment from the test directory, specifically located
+	 * at /tests/testdata/modules/images/
+	 *
+	 * @param string $file_name File name with extension to be loaded.
+	 *
+	 * @return int|WP_Error
+	 */
+	protected function import_attachment( $file_name ) {
+		return $this->factory->attachment->create_upload_object(
+			TESTS_PLUGIN_DIR . "/tests/testdata/modules/images/{$file_name}"
+		);
+	}
+
+	protected function edited_filename_regex() {
+		return '/-e[0-9]{13}-/';
 	}
 }

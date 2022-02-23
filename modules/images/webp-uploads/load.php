@@ -57,10 +57,6 @@ function webp_uploads_create_sources_property( array $metadata, $attachment_id )
 		}
 
 		$current_size = $image_sizes[ $size_name ];
-		$sources      = array();
-		if ( array_key_exists( 'sources', $current_size ) && is_array( $current_size['sources'] ) ) {
-			$sources = $current_size['sources'];
-		}
 
 		// Try to find the mime type of the image size.
 		$current_mime = '';
@@ -70,9 +66,22 @@ function webp_uploads_create_sources_property( array $metadata, $attachment_id )
 			$current_mime = wp_check_filetype( $current_size['file'] )['type'];
 		}
 
+		// The current mime is not a valid mime.
 		if ( empty( $current_mime ) ) {
-			$sizes[ $size_name ] = $current_size;
 			continue;
+		}
+
+		$sources          = array();
+		$has_file_changed = true;
+		if ( array_key_exists( 'sources', $current_size ) && is_array( $current_size['sources'] ) ) {
+			$sources = $current_size['sources'];
+			if (
+				! empty( $sources[ $current_mime ]['file'] )
+				&& ! empty( $current_size['file'] )
+				&& $sources[ $current_mime ]['file'] === $current_size['file']
+			) {
+				$has_file_changed = false;
+			}
 		}
 
 		$sources[ $current_mime ] = array(
@@ -91,7 +100,9 @@ function webp_uploads_create_sources_property( array $metadata, $attachment_id )
 			: array();
 
 		foreach ( $formats as $mime ) {
-			wp_schedule_single_event( time(), 'webp_uploads_create_image', array( $attachment_id, $size_name, $mime ) );
+			if ( $has_file_changed ) {
+				wp_schedule_single_event( time(), 'webp_uploads_create_image', array( $attachment_id, $size_name, $mime ) );
+			}
 		}
 
 		$current_size['sources'] = $sources;
@@ -104,6 +115,7 @@ function webp_uploads_create_sources_property( array $metadata, $attachment_id )
 }
 
 add_filter( 'wp_generate_attachment_metadata', 'webp_uploads_create_sources_property', 10, 2 );
+add_filter( 'wp_update_attachment_metadata', 'webp_uploads_create_sources_property', 10, 2 );
 
 /**
  * Creates a new image based of the specified attachment with a defined mime type
@@ -127,7 +139,10 @@ function webp_uploads_generate_image_size( $attachment_id, $size, $mime ) {
 		|| ! is_array( $metadata['sizes'][ $size ] )
 		|| ! is_array( $sizes[ $size ] )
 	) {
-		return new WP_Error( 'image_mime_type_invalid_metadata', __( 'The image does not have a valid metadata.', 'performance-lab' ) );
+		return new WP_Error(
+			'image_mime_type_invalid_metadata',
+			__( 'The image does not have a valid metadata.', 'performance-lab' )
+		);
 	}
 
 	// All subsizes are created out of the attached file.
@@ -135,7 +150,10 @@ function webp_uploads_generate_image_size( $attachment_id, $size, $mime ) {
 
 	// File does not exist.
 	if ( ! file_exists( $file ) ) {
-		return new WP_Error( 'image_file_size_not_found', __( 'The provided size does not have a valid image file.', 'performance-lab' ) );
+		return new WP_Error(
+			'image_file_size_not_found',
+			__( 'The provided size does not have a valid image file.', 'performance-lab' )
+		);
 	}
 
 	// Create the subsizes out of the attached file.
@@ -147,11 +165,17 @@ function webp_uploads_generate_image_size( $attachment_id, $size, $mime ) {
 
 	$allowed_mimes = array_flip( wp_get_mime_types() );
 	if ( ! array_key_exists( $mime, $allowed_mimes ) || ! is_string( $allowed_mimes[ $mime ] ) ) {
-		return new WP_Error( 'image_mime_type_invalid', __( 'The provided mime type is not allowed.', 'performance-lab' ) );
+		return new WP_Error(
+			'image_mime_type_invalid',
+			__( 'The provided mime type is not allowed.', 'performance-lab' )
+		);
 	}
 
 	if ( ! wp_image_editor_supports( array( 'mime_type' => $mime ) ) ) {
-		return new WP_Error( 'image_mime_type_not_supported', __( 'The provided mime type is not supported.', 'performance-lab' ) );
+		return new WP_Error(
+			'image_mime_type_not_supported',
+			__( 'The provided mime type is not supported.', 'performance-lab' )
+		);
 	}
 
 	$extension = explode( '|', $allowed_mimes[ $mime ] );
@@ -187,7 +211,10 @@ function webp_uploads_generate_image_size( $attachment_id, $size, $mime ) {
 	}
 
 	if ( empty( $image['file'] ) ) {
-		return new WP_Error( 'image_file_not_present', __( 'The file key is not present on the image data', 'performance-lab' ) );
+		return new WP_Error(
+			'image_file_not_present',
+			__( 'The file key is not present on the image data', 'performance-lab' )
+		);
 	}
 
 	if ( ! isset( $metadata['sizes'][ $size ]['sources'] ) || ! is_array( $metadata['sizes'][ $size ]['sources'] ) ) {
@@ -198,6 +225,9 @@ function webp_uploads_generate_image_size( $attachment_id, $size, $mime ) {
 		'file'     => $image['file'],
 		'filesize' => array_key_exists( 'path', $image ) ? filesize( $image['path'] ) : 0,
 	);
+
+	// Prevent an infinite loop removing this filter as is no longer required at this point.
+	remove_filter( 'wp_update_attachment_metadata', 'webp_uploads_create_sources_property' );
 
 	return wp_update_attachment_metadata( $attachment_id, $metadata );
 }
@@ -221,8 +251,6 @@ function webp_uploads_get_supported_image_mime_transforms() {
 	/**
 	 * Filter to allow the definition of a custom mime types, in which a defined mime type
 	 * can be transformed and provide a wide range of mime types.
-	 *
-	 * @since n.e.x.t
 	 *
 	 * @param array<string, array<string>> An array with the valid mime transforms.
 	 *
