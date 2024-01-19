@@ -46,12 +46,25 @@ function ilo_get_detection_script( string $slug, array $needed_minimum_viewport_
 		'neededMinimumViewportWidths' => $needed_minimum_viewport_widths,
 		'storageLockTTL'              => ilo_get_url_metric_storage_lock_ttl(),
 	);
-	return wp_get_inline_script_tag(
-		sprintf(
-			'import detect from %s; detect( %s );',
-			wp_json_encode( add_query_arg( 'ver', IMAGE_LOADING_OPTIMIZATION_VERSION, plugin_dir_url( __FILE__ ) . 'detection/detect.js' ) ),
-			wp_json_encode( $detect_args )
-		),
-		array( 'type' => 'module' )
+
+	$detection_script_tag = wp_get_script_tag(
+		array(
+			'src' => wp_json_encode(
+				add_query_arg(
+					'ver',
+					IMAGE_LOADING_OPTIMIZATION_VERSION,
+					plugin_dir_url( __FILE__ ) . 'assets/js/detection/detect.js'
+				)
+			),
+		)
 	);
+
+	$localize_detect_args = wp_get_inline_script_tag(
+		sprintf(
+			'var perfLabsILODetectArgs = %s;',
+			wp_json_encode( $detect_args )
+		)
+	);
+
+	return $localize_detect_args . $detection_script_tag;
 }
