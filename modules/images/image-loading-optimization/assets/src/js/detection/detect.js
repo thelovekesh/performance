@@ -1,5 +1,11 @@
 /** @typedef {import("web-vitals").LCPMetric} LCPMetric */
 
+/**
+ * External dependencies
+ */
+import { onLCP } from 'web-vitals';
+import { detectArgs } from 'perf-labs-ilo-detect';
+
 const win = window;
 const doc = win.document;
 
@@ -282,12 +288,6 @@ export default async function detect( {
 		} );
 	}
 
-	// TODO: Use a local copy of web-vitals.
-	const { onLCP } = await import(
-		// eslint-disable-next-line import/no-unresolved
-		'https://unpkg.com/web-vitals@3/dist/web-vitals.js?module'
-	);
-
 	/** @type {LCPMetric[]} */
 	const lcpMetricCandidates = [];
 
@@ -401,3 +401,5 @@ export default async function detect( {
 	// Clean up.
 	breadcrumbedElementsMap.clear();
 }
+
+detect( detectArgs );
