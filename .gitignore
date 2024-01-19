@@ -59,3 +59,7 @@ temp/
 ._*
 .Trashes
 .svn
+
+# Assets
+**/assets/*
+!**/assets/src
