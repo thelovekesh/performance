@@ -5,6 +5,7 @@ const path = require( 'path' );
 const CssMinimizerPlugin = require( 'css-minimizer-webpack-plugin' );
 const RemoveEmptyScriptsPlugin = require( 'webpack-remove-empty-scripts' );
 const RtlCssPlugin = require( 'rtlcss-webpack-plugin' );
+const WebpackBar = require( 'webpackbar' );
 
 /**
  * WordPress dependencies
@@ -69,6 +70,10 @@ const imageLoadingOptimization = {
 			( plugin ) =>
 				plugin.constructor.name !== 'DependencyExtractionWebpackPlugin'
 		),
+		new WebpackBar( {
+			name: 'Image loading optimization',
+			color: '#fdd835',
+		} ),
 	],
 };
 
