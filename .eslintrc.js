@@ -8,6 +8,12 @@ const config = {
 	rules: {
 		...( wpConfig?.rules || {} ),
 		'jsdoc/valid-types': 'off',
+		'import/no-unresolved': [
+			'error',
+			{
+				ignore: [ 'perf-labs-ilo-detect' ],
+			},
+		],
 	},
 	env: {
 		browser: true,
