@@ -1,6 +1,7 @@
 /**
  * External dependencies
  */
+const path = require( 'path' );
 const CssMinimizerPlugin = require( 'css-minimizer-webpack-plugin' );
 const RemoveEmptyScriptsPlugin = require( 'webpack-remove-empty-scripts' );
 const RtlCssPlugin = require( 'rtlcss-webpack-plugin' );
@@ -10,7 +11,8 @@ const RtlCssPlugin = require( 'rtlcss-webpack-plugin' );
  */
 const defaultConfig = require( '@wordpress/scripts/config/webpack.config' );
 
-const commonConfig = {
+/** @type {import('webpack').Configuration} */
+const sharedConfig = {
 	...defaultConfig,
 	plugins: [
 		...defaultConfig.plugins
@@ -44,4 +46,30 @@ const commonConfig = {
 	},
 };
 
-module.exports = commonConfig;
+// Module: Image loading optimization.
+const imageLoadingOptimization = {
+	...sharedConfig,
+	externals: {
+		'perf-labs-ilo-detect': 'perfLabsILODetectArgs',
+	},
+	entry: {
+		detect: path.resolve(
+			process.cwd(),
+			'modules/images/image-loading-optimization/assets/src/js/detection/detect.js'
+		),
+	},
+	output: {
+		path: path.resolve(
+			process.cwd(),
+			'modules/images/image-loading-optimization/assets/js/detection'
+		),
+	},
+	plugins: [
+		...sharedConfig.plugins.filter(
+			( plugin ) =>
+				plugin.constructor.name !== 'DependencyExtractionWebpackPlugin'
+		),
+	],
+};
+
+module.exports = [ imageLoadingOptimization ];
