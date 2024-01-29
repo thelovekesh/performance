@@ -134,8 +134,6 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          path: performance
 
       - name: Setup PHP and Composer
         uses: ./.github/actions/setup-php-composer
