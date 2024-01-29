@@ -1,0 +1,208 @@
+---
+name: Test
+
+on:
+  push:
+    branches:
+      - trunk
+      - 'release/**'
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  pre-run:
+    name: 'Pre run'
+    runs-on: ubuntu-latest
+    outputs:
+      changed-file-count: ${{ steps.determine-file-counts.outputs.count }}
+      changed-php-count: ${{ steps.determine-file-counts.outputs.php-count }}
+      changed-css-count: ${{ steps.determine-file-counts.outputs.css-count }}
+      changed-js-count: ${{ steps.determine-file-counts.outputs.js-count }}
+      changed-gha-workflow-count: ${{ steps.determine-file-counts.outputs.gha-workflow-count }}
+    steps:
+      - name: Checkout including last 2 commits
+        # Fetch last 2 commits if it's not a PR, so that we can determine the list of modified files.
+        if: ${{ github.base_ref == null }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Checkout
+        # Do usual checkout if it's a PR.
+        if: ${{ github.base_ref != null }}
+        uses: actions/checkout@v4
+
+      - name: Determine modified files
+        id: determine-file-counts
+        uses: ./.github/actions/determine-changed-files
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+  unit-test-php:
+    name: "Unit test: PHP ${{ matrix.php }}, WP ${{ matrix.wp }}"
+    runs-on: ubuntu-latest
+    needs: pre-run
+    env:
+      WP_CORE_DIR: /tmp/wordpress
+      WP_TESTS_DIR: /tmp/wordpress-tests-lib
+      WP_ENVIRONMENT_TYPE: local
+    services:
+      mysql:
+        image: mariadb:latest
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: true
+          MARIADB_DATABASE: wordpress_test
+          MARIADB_MYSQL_LOCALHOST_USER: 1
+          MARIADB_MYSQL_LOCALHOST_GRANTS: USAGE
+        ports:
+          - 3306
+        options: --health-cmd="healthcheck.sh --su-mysql --connect --innodb_initialized" --health-interval=10s --health-timeout=5s --health-retries=3
+    continue-on-error: ${{ matrix.experimental == true }}
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.0']
+        wp: ['latest']
+        phpunit: ['9.3']
+        include:
+          - php: '8.3'
+            wp: 'trunk'
+            phpunit: '9.6'
+            experimental: true
+
+          - php: '8.2'
+            wp: 'trunk'
+            phpunit: '9.6'
+
+          - php: '8.1'
+            wp: 'trunk'
+            phpunit: '9.6'
+
+          - php: '8.0'
+            wp: 'trunk'
+            phpunit: '9.3'
+            multisite: true
+
+          - php: '7.4'
+            wp: 'latest'
+            phpunit: '9.3'
+            multisite: true
+
+          - php: '7.4'
+            wp: 'latest'
+            phpunit: '9.3'
+
+          - php: '7.4'
+            wp: '5.3'
+            phpunit: '7'
+
+          - php: '7.4'
+            wp: '5.3'
+            phpunit: '7'
+    steps:
+      - name: Shutdown default MySQL service
+        run: sudo service mysql stop
+
+      - name: Verify MariaDB connection
+        run: |
+          retry_count=0
+          max_retries=5
+
+          while [ $retry_count -lt $max_retries ]; do
+            if mysqladmin ping -h"127.0.0.1" -P"${{ job.services.mysql.ports[3306] }}" --silent; then
+              break
+            else
+              ((retry_count++))
+              sleep 5
+            fi
+          done
+
+          if [ $retry_count -ge $max_retries ]; then
+            echo "::error::Failed to establish a MariaDB connection after $max_retries retries."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: performance
+
+      - name: Setup PHP and Composer
+        uses: ./.github/actions/setup-php-composer
+        with:
+          php-version: ${{ matrix.php }}
+          tools: 'composer,phpunit:${{ matrix.phpunit }}'
+
+      - name: Setup NodeJS and NPM
+        uses: ./.github/actions/setup-node-npm
+
+      # Avoid conflicts with globally installed PHPUnit.
+      - name: Remove locally installed PHPUnit
+        run: |
+          rm -rf vendor/phpunit
+          composer dump-autoload -o
+
+      - name: Setup problem matchers
+        run: echo "::add-matcher::${{ runner.tool_cache }}/phpunit.json"
+
+      - name: Install WP tests
+        run: bash .github/bin/install-wp-tests.sh wordpress_test root '' 127.0.0.1:${{ job.services.mysql.ports['3306'] }} ${{ matrix.wp }} true
+
+      - name: Copy plugin to WP plugins directory
+        run: cp -r "$PWD" "$WP_CORE_DIR/src/wp-content/plugins/performance"
+
+      - name: Override default PHPUnit configuration
+        if: ${{ matrix.experimental == true && needs.pre-run.outputs.changed-php-count > 0 }}
+        run: |
+          cp phpunit.xml.dist phpunit.xml
+
+          # Avoid converting deprecations, errors, notices, and warnings to exceptions in experimental mode.
+          sed -i 's/convertDeprecationsToExceptions="true"/convertDeprecationsToExceptions="false"/g' phpunit.xml
+          sed -i 's/convertErrorsToExceptions="true"/convertErrorsToExceptions="false"/g' phpunit.xml
+          sed -i 's/convertNoticesToExceptions="true"/convertNoticesToExceptions="false"/g' phpunit.xml
+          sed -i 's/convertWarningsToExceptions="true"/convertWarningsToExceptions="false"/g' phpunit.xml
+        working-directory: ${{ env.WP_CORE_DIR }}/src/wp-content/plugins/performance
+
+      - name: Run Single Site tests
+        if: ${{ matrix.multisite == false && needs.pre-run.outputs.changed-php-count > 0 }}
+        run: |
+            phpunit --verbose
+        working-directory: ${{ env.WP_CORE_DIR }}/src/wp-content/plugins/performance
+
+      - name: Run multisite tests
+        if: ${{ matrix.multisite == true && needs.pre-run.outputs.changed-php-count > 0 }}
+        run: |
+          phpunit -c tests/multisite.xml --verbose
+        working-directory: ${{ env.WP_CORE_DIR }}/src/wp-content/plugins/performance
+        env:
+          WP_MULTISITE: 1
+
+      - name: Build plugins
+        if: ${{ matrix.multisite == false && needs.pre-run.outputs.changed-php-count == 0 && always() }}
+        run: |
+          npm run build-plugins
+        working-directory: ${{ env.WP_CORE_DIR }}/src/wp-content/plugins/performance
+
+      - name: Run standalone tests
+        if: ${{ matrix.multisite == false && needs.pre-run.outputs.changed-php-count == 0 && always() }}
+        run: |
+          node bin/plugin/cli.js test-plugins --command="phpunit --verbose"
+        working-directory: ${{ env.WP_CORE_DIR }}/src/wp-content/plugins/performance
+
+      - name: Run standalone multisite tests
+        if: ${{ matrix.multisite == true && needs.pre-run.outputs.changed-php-count == 0 && always() }}
+        run: |
+          node bin/plugin/cli.js test-plugins --command="phpunit -c multisite.xml --verbose" --sitetype=multi
+        working-directory: ${{ env.WP_CORE_DIR }}/src/wp-content/plugins/performance
+        env:
+          WP_MULTISITE: 1
