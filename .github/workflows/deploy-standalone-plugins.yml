@@ -165,7 +165,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               run_id: context.runId,
-              name: ${{ matrix.plugin }}
+              name: "${{ matrix.plugin }}"
             });
 
             if (getArtifact.status !== 200) {
