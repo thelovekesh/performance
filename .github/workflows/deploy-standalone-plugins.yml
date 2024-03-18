@@ -144,7 +144,7 @@ jobs:
           ASSETS_DIR: ./plugins/${{ matrix.plugin }}/.wordpress-org
 
       - name: Finish deployment
-        if: always()
+        if: ${{ steps.wporg-deployment.outputs.deployment_id && always() }}
         uses: bobheadxi/deployments@v1
         with:
           step: finish
