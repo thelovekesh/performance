@@ -77,9 +77,12 @@ jobs:
         run: |
           echo "PLUGIN_VERSION=$(jq -r '."${{ matrix.plugin }}"' manifest.json)" >> $GITHUB_ENV
 
-      - name: Prepare plugin to deploy
+      - name: Check if deployment is needed
+        id: check-deployment
         run: |
-          PLUGIN_VERSION_WPORG=$(curl -sSL https://api.wordpress.org/plugins/info/1.0/${{ matrix.plugin }}.json --retry 3 --retry-delay 5 --retry-all-errors --fail | jq -r '.version') >> $GITHUB_ENV
+          PLUGIN_VERSION_WPORG=$(curl -sSL https://api.wordpress.org/plugins/info/1.0/${{ matrix.plugin }}.json --retry 3 --retry-delay 5 --retry-all-errors --fail | jq -r '.version')
+
+          echo "::notice::The ${{ matrix.plugin }} plugin is currently at version $PLUGIN_VERSION_WPORG on WordPress.org."
 
           # Bail if plugin version is not found.
           if [ -z "$PLUGIN_VERSION_WPORG" ]; then
@@ -93,13 +96,17 @@ jobs:
             exit 0
           fi
 
+          echo "deploy=true" >> $GITHUB_OUTPUT
+
       - name: Create zip file
+        if: steps.check-deployment.outputs.deploy == 'true'
         run: |
           mkdir -p ./build/dist
           cd ./build/${{ matrix.plugin }}
           zip -r ../dist/${{ matrix.plugin }}.zip .
 
       - name: Generate checksum
+        if: steps.check-deployment.outputs.deploy == 'true'
         working-directory: ./build/dist
         run: |
           mkdir -p $RUNNER_TEMP/plugin-checksums
@@ -108,12 +115,14 @@ jobs:
           cat $RUNNER_TEMP/plugin-checksums/checksums.txt | while read sum file; do echo "$sum $file" > ${file#\*}.sha256; done
 
       - name: Upload artifact
+        if: steps.check-deployment.outputs.deploy == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.plugin }}
           path: ./build/dist
 
       - name: Start deployment
+        if: steps.check-deployment.outputs.deploy == 'true'
         uses: bobheadxi/deployments@v1
         id: wporg-deployment
         with:
@@ -122,6 +131,7 @@ jobs:
           env: "wp.org plugin: ${{ matrix.plugin }}"
 
       - name: Deploy Plugin - ${{ matrix.plugin }}
+        if: steps.check-deployment.outputs.deploy == 'true'
         uses: 10up/action-wordpress-plugin-deploy@stable
         with:
           dry-run: true
@@ -134,7 +144,7 @@ jobs:
           ASSETS_DIR: ./plugins/${{ matrix.plugin }}/.wordpress-org
 
       - name: Finish deployment
-        if: always()
+        if: steps.check-deployment.outputs.deploy == 'true' && failure()
         uses: bobheadxi/deployments@v1
         with:
           step: finish
