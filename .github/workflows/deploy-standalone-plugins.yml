@@ -183,6 +183,7 @@ jobs:
             }
 
             core.setOutput('exists', getArtifact.data.artifacts.length > 0);
+            core.notice(`Artifact for ${{ matrix.plugin }} exists: ${core.getInput('exists')}`);
 
       - name: Download artifact
         if: steps.artifact-existence.outputs.exists == 'true'
