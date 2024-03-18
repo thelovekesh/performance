@@ -43,7 +43,7 @@ jobs:
           fi
 
           # Set the matrix.
-          echo "::notice::Deploying the following plugins: $PLUGINS"
+          echo "::notice::Deploying the following plugins: $(echo ${PLUGINS[@]})"
           echo "plugins=$(echo $PLUGINS | jq -c .)" >> $GITHUB_OUTPUT
 
   deploy:
@@ -92,7 +92,7 @@ jobs:
 
           # Bail if plugin is already up to date.
           if [ "$PLUGIN_VERSION_WPORG" = "$PLUGIN_VERSION" ]; then
-            echo "::notice::The plugin ${{ matrix.plugin }} is already up to date on WordPress.org."
+            echo "::notice::The ${{ matrix.plugin }} plugin is already up to date on WordPress.org."
             exit 0
           fi
 
