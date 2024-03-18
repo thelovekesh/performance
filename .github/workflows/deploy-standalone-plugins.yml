@@ -144,7 +144,7 @@ jobs:
           ASSETS_DIR: ./plugins/${{ matrix.plugin }}/.wordpress-org
 
       - name: Finish deployment
-        if: steps.check-deployment.outputs.deploy == 'true' && failure()
+        if: always()
         uses: bobheadxi/deployments@v1
         with:
           step: finish
