@@ -1,5 +1,5 @@
 includes:
-	- build-cs/vendor/phpstan/phpstan/conf/bleedingEdge.neon
+	- vendor/phpstan/phpstan/conf/bleedingEdge.neon
 parameters:
 	level: 0
 	paths:
