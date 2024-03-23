@@ -68,7 +68,11 @@ jobs:
         # Note that `composer update` is required instead of `composer install`
         # for the sake of PHP versions older than 8.1, which is the version of
         # PHP that the composer.lock was created for.
+      - name: Composer install
+        if: ${{ matrix.php >= '8.0' }}
+        run: npm run wp-env run tests-cli -- --env-cwd="wp-content/plugins/$(basename $(pwd))" composer install --no-interaction
       - name: Composer update
+        if: ${{ matrix.php < '8.0' }}
         run: npm run wp-env run tests-cli -- --env-cwd="wp-content/plugins/$(basename $(pwd))" composer update --no-interaction
       - name: Running single site unit tests for plugins
         run: npm run test-php-plugins
